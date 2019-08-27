@@ -2,7 +2,8 @@
  * Created by lvbingru on 1/5/16.
  */
 
-import {NativeModules, Platform, NativeEventEmitter, DeviceEventEmitter} from 'react-native';
+import {NativeModules, NativeEventEmitter} from 'react-native';
+import promisify from 'es6-promisify';
 
 const {WeiboAPI} = NativeModules;
 
@@ -26,16 +27,9 @@ function wrapApi(nativeFunc) {
     if (!nativeFunc) {
         return undefined;
     }
-
+    const promisified = promisify(nativeFunc, translateError);
     return (...args) => {
-        return new Promise((resolve, reject) => {
-            nativeFunc.apply(this, [...args, (...result) => {
-                translateError.apply({
-                    resolve,
-                    reject
-                }, result);
-            }]);
-        });
+        return promisified(...args);
     };
 }
 
@@ -46,7 +40,9 @@ function waitForResponse(type) {
         if (savedCallback) {
             savedCallback('User canceled.');
         }
+        console.log("HHHHHHHHHAAEFEFW")
         savedCallback = result => {
+            console.log("HAHHSAA", result)
             if (result.type !== type) {
                 return;
             }
@@ -62,19 +58,12 @@ function waitForResponse(type) {
     });
 }
 
-
-let Emiter;
-if (Platform.OS === 'ios') {
-    Emiter = new NativeEventEmitter(WeiboAPI);
-} else {
-    Emiter = DeviceEventEmitter;
-}
-
-Emiter.addListener('Weibo_Resp', resp => {
+new NativeEventEmitter(WeiboAPI).addListener('Weibo_Resp', resp => {
     const callback = savedCallback;
     savedCallback = undefined;
     callback && callback(resp);
 });
+
 
 const defaultScope = "all"
 const defaultRedirectURI = "https://api.weibo.com/oauth2/default.html"
@@ -100,3 +89,4 @@ export function share(data) {
     checkData(data)
     return Promise.all([waitForResponse('WBSendMessageToWeiboResponse'), nativeSendMessageRequest(data)]).then(v=>v[0]);
 }
+
